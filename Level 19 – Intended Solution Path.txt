@@ -1,0 +1,245 @@
+Level 19 – Intended Solution Path
+Objective
+
+The player starts as:
+
+level19
+
+The goal is:
+
+Obtain access to level20
+
+The player is not told how.
+
+Stage 1 – Initial Recon
+
+The player reads:
+
+cat ~/README
+
+The note hints that:
+
+legacy systems still exist
+some services run automatically
+not every clue is useful
+some credentials may be outdated
+
+At this point there is no obvious attack path.
+
+Stage 2 – General Enumeration
+
+The player begins normal Linux enumeration:
+
+id
+sudo -l
+find / -perm -4000 2>/dev/null
+ps aux
+systemctl list-units
+systemctl list-timers
+Stage 3 – Rabbit Hole
+
+The player discovers:
+
+/usr/local/bin/bt_debug
+
+through:
+
+find / -perm -4000 2>/dev/null
+
+This appears promising.
+
+After investigation:
+
+Debugging disabled.
+
+No escalation.
+
+This is a deliberate dead end.
+
+Stage 4 – Timer Discovery
+
+The player notices:
+
+breachsync.timer
+
+through:
+
+systemctl list-timers
+
+This is the first real clue.
+
+The timer executes every:
+
+5 minutes
+Stage 5 – Service Discovery
+
+The player investigates:
+
+systemctl cat breachsync.service
+
+and sees:
+
+User=level20
+
+This immediately tells them:
+
+Something executes automatically as level20.
+
+Stage 6 – Locate BreachSync
+
+Further enumeration leads to:
+
+/opt/.bt/breachsync
+
+The player gains access because they belong to:
+
+bt_sync
+Stage 7 – Read Documentation
+
+The player reads:
+
+README.md
+sync.log
+sync.conf
+
+Important observations:
+
+README
+
+Mentions:
+
+legacy support
+plugin support
+integrity verification
+sync.log
+
+Mentions:
+
+Plugin loaded successfully
+Legacy plugin compatibility enabled
+sync.conf
+
+Contains:
+
+PLUGIN_PATH=/opt/.bt/plugins
+Stage 8 – Connect the Dots
+
+The player now knows:
+
+Service runs as level20
+↓
+Plugins are loaded
+↓
+Plugin path exists
+
+The obvious next step is:
+
+ls -la /opt/.bt/plugins
+Stage 9 – Discover Writable Plugin Location
+
+The player discovers they can place files inside:
+
+/opt/.bt/plugins
+
+This is the vulnerability.
+
+They realize:
+
+If I can create a plugin
+and a level20 service loads it
+then I can execute commands as level20
+Stage 10 – Plugin Injection
+
+The player creates:
+
+custom.sh
+
+inside:
+
+/opt/.bt/plugins
+
+The service is already coded to load:
+
+custom.sh
+
+if present.
+
+Stage 11 – Wait
+
+The player cannot trigger execution manually.
+
+Instead they must notice:
+
+breachsync.timer
+
+and wait for the next run.
+
+This happens every:
+
+5 minutes
+Stage 12 – Verify RCE
+
+After execution, the player confirms:
+
+commands are running as level20
+
+For example:
+
+uid=1021(level20)
+
+appears in a file they created.
+
+The player now has:
+
+Code Execution as level20
+
+but not yet a level20 shell.
+
+Stage 13 – Information Theft
+
+The player uses their code execution to access resources readable only by:
+
+level20
+
+Eventually they discover:
+
+/home/level20/.config/internal/service_notes.txt
+
+which contains maintenance credentials.
+
+Stage 14 – Credential Recovery
+
+The player copies the contents somewhere they can read.
+
+The recovered note contains:
+
+Account: level20
+Password: ********
+Stage 15 – Account Takeover
+
+The player switches users:
+
+su level20
+
+using the recovered password.
+
+Success.
+
+Level Complete
+level19
+    ↓
+enumeration
+    ↓
+timer discovery
+    ↓
+service discovery
+    ↓
+plugin discovery
+    ↓
+plugin injection
+    ↓
+code execution
+    ↓
+credential theft
+    ↓
+level20

